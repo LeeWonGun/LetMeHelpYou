@@ -23,16 +23,59 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     return "\n".join(parts)
 
 
-def chunk_text(text: str, max_len: int = 800) -> List[str]:
+def chunk_text(
+    text: str,
+    max_len: int | None = None,
+    overlap: int | None = None,
+) -> List[str]:
     text = re.sub(r"\s+", " ", text).strip()
-    chunks, cur = [], []
-    for token in text.split(" "):
-        cur.append(token)
-        if sum(len(t) + 1 for t in cur) > max_len:
-            chunks.append(" ".join(cur))
-            cur = []
-    if cur:
-        chunks.append(" ".join(cur))
+    if not text:
+        return []
+
+    max_len = max_len if max_len is not None else settings.CHUNK_SIZE
+    overlap = overlap if overlap is not None else settings.CHUNK_OVERLAP
+    if max_len <= 0:
+        raise ValueError("max_len must be greater than 0")
+    if overlap < 0 or overlap >= max_len:
+        raise ValueError("overlap must be between 0 and max_len - 1")
+
+    sentence_end = re.compile(r"[.!?。！？]+(?:[\"'”’\)\]]+)?(?=\s|$)")
+    chunks = []
+    start = 0
+    text_len = len(text)
+
+    while start < text_len:
+        hard_end = min(start + max_len, text_len)
+        end = hard_end
+
+        if hard_end < text_len:
+            window = text[start:hard_end]
+            boundaries = list(sentence_end.finditer(window))
+            if boundaries:
+                end = start + boundaries[-1].end()
+            else:
+                word_end = text.rfind(" ", start + 1, hard_end + 1)
+                if word_end > start:
+                    end = word_end
+
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+
+        if end >= text_len:
+            break
+
+        if overlap == 0 or end - start <= overlap:
+            next_start = end
+        else:
+            next_start = end - overlap
+            if not text[next_start - 1].isspace():
+                next_space = text.find(" ", next_start, end)
+                if next_space != -1:
+                    next_start = next_space + 1
+
+        start = next_start if next_start > start else end
+
     return chunks
 
 
@@ -71,7 +114,11 @@ def build_faiss_index_for_document(doc: Document) -> int:
     반환값: 생성된 청크 수
     """
     raw = extract_text_from_pdf(doc.file.path)
-    chunks = chunk_text(raw, max_len=getattr(settings, "CHUNK_SIZE", 800))
+    chunks = chunk_text(
+        raw,
+        max_len=settings.CHUNK_SIZE,
+        overlap=settings.CHUNK_OVERLAP,
+    )
 
     # 기존 청크 삭제 후 재생성
     DocumentChunk.objects.filter(doc=doc).delete()
@@ -111,18 +158,29 @@ def search_similar_chunks(doc_id: int, query: str, topk: int) -> List[Dict]:
 
     index = faiss.read_index(ipath)
     metas = np.load(mpath, allow_pickle=True).tolist()  # 텍스트 리스트
+    if not metas or index.ntotal == 0 or topk <= 0 or not query.strip():
+        return []
 
-    qv = np.array(embed_batch([query])[0], dtype="float32")[None, :]
-    D, I = index.search(qv, min(topk, len(metas)))
+    query_vectors = embed_batch([query])
+    if not query_vectors or not query_vectors[0]:
+        return []
+
+    qv = np.array(query_vectors[0], dtype="float32")[None, :]
+    search_count = min(topk, len(metas), index.ntotal)
+    D, I = index.search(qv, search_count)
+    distance_threshold = getattr(settings, "RAG_DISTANCE_THRESHOLD", None)
     hits = []
     for rank, idx in enumerate(I[0]):
         if idx < 0 or idx >= len(metas):
+            continue
+        distance = float(D[0][rank])
+        if distance_threshold is not None and distance > distance_threshold:
             continue
         hits.append({
             "doc_id": doc_id,
             "idx": int(idx),
             "rank": int(rank),
-            "score": float(D[0][rank]),
+            "score": distance,
             "text": metas[idx][:400],
         })
     return hits
