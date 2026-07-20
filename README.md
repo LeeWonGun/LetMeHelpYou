@@ -1,266 +1,492 @@
-# Lecture Summary App
+# Let Me Help You
 
-Flutter 클라이언트와 Django 기반 RAG 서버를 하나의 저장소에서 관리하는 강의 문서 요약 애플리케이션입니다. Android를 기본 실행 환경으로 개발했으며, 현재 공개 범위는 운영 배포가 아닌 로컬 포트폴리오 시연 환경을 기준으로 합니다.
+Let Me Help You는 강의 자료 PDF를 등록하면 문서 내용을 분석하여 **AI 요약, 학습노트 생성, 문서 기반 질의응답**을 제공하는 Android 학습 지원 애플리케이션입니다.
 
-## 프로젝트 구성
+PDF에서 텍스트를 추출하고 문서를 Chunk 단위로 분할한 뒤, OpenAI Embedding과 FAISS Vector Search를 이용해 문서의 관련 내용을 검색합니다. 검색된 문맥을 기반으로 답변을 생성하는 RAG 구조를 적용하여, 일반적인 AI 답변이 아니라 **사용자가 등록한 강의 자료에 근거한 학습 기능**을 제공하도록 구현했습니다.
 
-```text
-lecture-summary-app/
-├── frontend-flutter/  # Flutter 애플리케이션
-└── backend-rag/       # Django/Python RAG 서버
-```
+---
+
+## 주요 기능
+
+### 회원 및 인증
+
+- Kakao OAuth 기반 로그인
+- Kakao 사용자 정보 기반 회원 등록 및 조회
+- Django REST Framework Simple JWT 기반 인증
+- Access Token 및 Refresh Token 발급
+- Access Token 만료 시 자동 갱신
+- Flutter Secure Storage를 이용한 Token 저장
+- 인증 사용자만 문서 및 AI 기능 접근 가능
+
+### PDF 문서 관리
+
+- Android 기기에서 PDF 파일 선택
+- PDF 파일 서버 업로드
+- 등록된 문서 목록 조회
+- 문서 상세 조회
+- 문서 이름 변경 및 삭제
+- 업로드 파일과 문서 정보 관리
+
+### PDF 분석 및 인제스트
+
+- PyMuPDF를 이용한 PDF 텍스트 추출
+- 추출된 텍스트를 Chunk 단위로 분할
+- Chunk별 데이터베이스 저장
+- OpenAI Embedding을 이용한 Vector 생성
+- 문서별 FAISS Index 및 Metadata 생성
+- 문서별 검색 데이터 분리 관리
+
+### AI 문서 요약
+
+- PDF 전체 내용을 기반으로 핵심 내용 요약
+- OpenAI Chat API를 이용한 자연어 요약 생성
+- 생성된 요약 결과를 애플리케이션 화면에 표시
+
+### AI 학습노트
+
+- 문서 내용을 학습하기 쉬운 형태로 재구성
+- 핵심 개념과 세부 내용 정리
+- Markdown 형식의 학습노트 생성
+- 학습노트 작성에 사용된 참고 Chunk 제공
+- PDF 페이지 이미지와 관련 학습 내용 연결
+
+### RAG 기반 질의응답
+
+- 등록한 PDF에 대한 사용자 질문 입력
+- 질문을 Embedding Vector로 변환
+- FAISS를 이용한 유사 Chunk 검색
+- 검색된 문맥을 기반으로 OpenAI 답변 생성
+- FAISS 검색 실패 시 데이터베이스 Chunk 기반 문맥 사용
+- 문서 내용에 근거한 질의응답 제공
+
+---
+
+## 기술 스택
+
+| 영역 | 기술 |
+| --- | --- |
+| Mobile | Flutter, Dart |
+| Target Platform | Android |
+| UI | Flutter Material, Markdown Renderer |
+| HTTP Client | Dio |
+| PDF | File Picker, Syncfusion Flutter PDF Viewer |
+| Authentication | Kakao OAuth, Simple JWT |
+| Token Storage | Flutter Secure Storage |
+| Backend | Python, Django, Django REST Framework |
+| Database | MySQL |
+| PDF Processing | PyMuPDF |
+| AI | OpenAI Chat API, OpenAI Embedding API |
+| Vector Search | FAISS |
+| Image Processing | Pillow |
+| Collaboration | Git, GitHub |
+
+---
 
 ## 시스템 구조
 
-```text
-Flutter Client
-  └─ Django REST API / Simple JWT
-       ├─ MySQL: 문서 및 Chunk 메타데이터
-       ├─ media: 업로드 PDF와 생성 이미지
-       ├─ OpenAI API: Embedding 및 응답 생성
-       └─ FAISS: 문서별 벡터 인덱스
+```mermaid
+flowchart LR
+    U[Android 사용자]
+
+    subgraph APP[Flutter Android App]
+        K[Kakao 로그인]
+        D[PDF 문서 관리]
+        S[요약 및 학습노트]
+        Q[문서 질의응답]
+    end
+
+    subgraph SERVER[Django REST API]
+        A[JWT 인증]
+        P[PDF 처리 및 Chunk 생성]
+        R[RAG Service]
+    end
+
+    subgraph STORAGE[Data Storage]
+        DB[(MySQL)]
+        M[Media Storage]
+        F[FAISS Index]
+    end
+
+    KA[Kakao API]
+    O[OpenAI API]
+
+    U --> APP
+    K --> KA
+
+    APP --> A
+    APP --> P
+    APP --> R
+
+    A --> DB
+    P --> M
+    P --> DB
+    P --> O
+    P --> F
+
+    R --> DB
+    R --> F
+    R --> O
 ```
+
+Flutter Android 애플리케이션은 Django REST API와 통신합니다.
+
+Django Backend는 사용자와 문서 정보를 MySQL에 저장하고, 업로드된 PDF와 생성된 페이지 이미지를 Media 디렉터리에서 관리합니다.
+
+PDF에서 추출한 Chunk는 MySQL에 저장하며, OpenAI Embedding으로 생성한 Vector는 문서별 FAISS Index로 관리합니다.
+
+---
 
 ## RAG 처리 흐름
 
 ```text
-PDF 업로드
+PDF 파일 선택
+→ PDF 서버 업로드
 → PyMuPDF 텍스트 추출
-→ 문서 Chunk 분할 및 DB 저장
+→ 텍스트 Chunk 분할
+→ Chunk 데이터베이스 저장
 → OpenAI Embedding 생성
-→ FAISS 인덱스 저장 및 유사 Chunk 검색
-→ 검색 문맥을 사용한 요약 및 질의응답
+→ FAISS Index 저장
+→ 사용자 질문 Embedding 생성
+→ 관련 Chunk 검색
+→ 검색된 문맥을 OpenAI에 전달
+→ 문서 기반 답변 생성
 ```
 
-## 주요 기능
+### 문서 인제스트
 
-- PDF 문서 업로드
-- PDF 텍스트 및 페이지 이미지 추출
-- 문서 텍스트 Chunk 분할
-- OpenAI Embedding 생성
-- FAISS 기반 유사 문서 Chunk 검색
-- RAG 기반 문서 요약 및 질의응답
-- Kakao 로그인과 JWT 기반 인증
+PDF를 업로드하면 검색과 AI 기능에 사용할 데이터를 생성합니다.
 
-## 기술 스택
+```text
+PDF 읽기
+→ 페이지별 텍스트 추출
+→ Chunk 분할
+→ DocumentChunk 저장
+→ Embedding 생성
+→ FAISS Index 생성
+```
 
-### Frontend
+### 문서 검색
 
-- Flutter / Dart
-- Dio 및 HTTP
-- Syncfusion Flutter PDF Viewer
-- Kakao Flutter SDK
-- Flutter Secure Storage
-- Flutter Markdown
+사용자의 질문을 Vector로 변환하고 해당 문서의 FAISS Index에서 의미적으로 유사한 Chunk를 검색합니다.
+
+```text
+사용자 질문
+→ 질문 Embedding
+→ FAISS 유사도 검색
+→ 관련 Chunk 반환
+```
+
+### 답변 생성
+
+검색된 Chunk를 문맥으로 사용하여 OpenAI Chat API에 답변 생성을 요청합니다.
+
+```text
+사용자 질문 + 검색된 문서 문맥
+→ OpenAI Chat API
+→ PDF 내용에 근거한 답변
+```
+
+---
+
+## 인증 구조
+
+Kakao OAuth 인증 후 Django Backend에서 서비스 전용 JWT를 발급하는 구조입니다.
+
+```text
+Kakao 로그인
+→ Kakao Access Token 발급
+→ Flutter에서 Kakao Token 전달
+→ Backend에서 Kakao 사용자 검증
+→ 사용자 조회 또는 생성
+→ Simple JWT Access/Refresh Token 발급
+→ Flutter Secure Storage에 Token 저장
+```
+
+이후 인증이 필요한 API 요청에는 Access Token을 포함합니다.
+
+```http
+Authorization: Bearer {ACCESS_TOKEN}
+```
+
+Access Token이 만료되어 `401 Unauthorized`가 발생하면 Refresh Token을 사용하여 Access Token을 갱신한 뒤 기존 요청을 다시 수행합니다.
+
+```text
+API 요청
+→ Access Token 만료
+→ 401 응답
+→ Access Token 갱신
+→ 기존 요청 재시도
+```
+
+OpenAI API Key와 Django Secret Key는 Android 애플리케이션에 포함하지 않고 Backend 환경변수에서만 관리합니다.
+
+---
+
+## 주요 도메인
+
+| 도메인 | 역할 |
+| --- | --- |
+| User | 사용자 정보와 Kakao 계정 연동 관리 |
+| Document | 업로드한 PDF 문서 정보 관리 |
+| DocumentChunk | PDF에서 추출한 분할 텍스트 관리 |
+| DocumentImage | 문서에서 추출한 이미지 관리 |
+| DocumentPageImage | 학습노트에 사용할 PDF 페이지 이미지 관리 |
+| QuestionAnswer | 문서 기반 질문과 답변 기록 관리 |
+| FAISS Index | 문서 Chunk의 Embedding Vector 검색 |
+| Token | Access Token과 Refresh Token 기반 인증 |
+
+---
+
+## 주요 API
+
+### 인증
+
+```http
+POST /api/auth/kakao/
+POST /api/auth/refresh/
+```
+
+### 문서 관리
+
+```http
+GET    /api/docs/
+GET    /api/docs/{documentId}/
+POST   /api/files/upload/
+POST   /api/files/ingest/
+POST   /api/ingest/
+DELETE /api/docs/{documentId}/
+```
+
+### AI 기능
+
+```http
+POST /api/summarize/
+POST /api/summarize/notes/
+POST /api/ask-gpt/
+```
+
+### 학습노트 페이지
+
+```http
+POST /api/notes/snapshots/
+POST /api/pages/generate/
+GET  /api/pages/{documentId}/
+```
+
+인증이 필요한 API는 JWT 검증을 통과한 요청만 처리합니다.
+
+---
+
+## 프로젝트 구조
+
+```text
+lecture-summary-app
+├── backend-rag
+│   ├── manage.py
+│   ├── requirements.txt
+│   ├── .env.example
+│   ├── lmhu
+│   │   ├── migrations
+│   │   ├── models.py
+│   │   ├── serializers.py
+│   │   ├── urls.py
+│   │   ├── views.py
+│   │   └── utils.py
+│   └── lmhu_project
+│       ├── settings.py
+│       ├── urls.py
+│       ├── asgi.py
+│       └── wsgi.py
+├── frontend-flutter
+│   ├── android
+│   ├── assets
+│   ├── lib
+│   │   ├── screens
+│   │   ├── api_client.dart
+│   │   ├── config.dart
+│   │   ├── main.dart
+│   │   └── session_manager.dart
+│   ├── pubspec.yaml
+│   └── analysis_options.yaml
+├── .gitignore
+└── README.md
+```
+
+다음 로컬 실행 데이터는 Git에 포함하지 않습니다.
+
+```text
+backend-rag/.env
+backend-rag/venv
+backend-rag/media
+backend-rag/faiss
+backend-rag/db.sqlite3
+frontend-flutter/android/local.properties
+```
+
+---
+
+## 환경 변수
+
+`backend-rag/.env.example`을 복사하여 `.env`를 생성한 뒤 필요한 값을 설정합니다.
+
+```env
+DJANGO_SECRET_KEY=
+DJANGO_DEBUG=false
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+
+DB_NAME=
+DB_USER=
+DB_PASSWORD=
+DB_HOST=
+DB_PORT=3306
+
+OPENAI_API_KEY=
+EMBED_MODEL=text-embedding-3-small
+USE_RAG=true
+
+CORS_ALLOWED_ORIGINS=
+```
+
+주요 설정 항목:
+
+- Django Secret Key
+- MySQL 접속 정보
+- OpenAI API Key
+- Embedding Model
+- 허용 Host 및 Origin
+- RAG 활성화 여부
+
+실제 Secret이 포함된 `.env` 파일은 Git에 커밋하지 않습니다.
+
+---
+
+## Kakao 로그인 설정
+
+Kakao Developers에서 Android 애플리케이션을 등록한 뒤 다음 정보를 설정해야 합니다.
+
+- Android Package Name
+- Native App Key
+- Android Key Hash
+
+공개용 예제 설정은 다음 파일에서 확인할 수 있습니다.
+
+```text
+frontend-flutter/android/local.properties.example
+```
+
+실제 설정은 Git에서 제외되는 `local.properties`에 작성합니다.
+
+```properties
+flutter.sdk=C:\\path\\to\\flutter
+kakao.native.app.key=YOUR_KAKAO_NATIVE_APP_KEY
+```
+
+---
+
+## 실행 방법
 
 ### Backend
 
-- Python / Django 5.2
-- Django REST Framework
-- Simple JWT
-- MySQL
-- OpenAI API
-- FAISS / NumPy
-- PyMuPDF
-
-## 환경변수 설정
-
-Backend 환경변수 예시는 `backend-rag/.env.example`에 있습니다. `.env`가 없는 새 환경에서는 이 파일을 참고해 `backend-rag/.env`를 별도로 준비하세요. 기존 `.env`가 있다면 덮어쓰지 마세요.
-
-실제 API Key, Django Secret Key, DB 비밀번호는 저장소에 커밋하지 마세요. Django 설정은 `DJANGO_*`, `DB_*`, `CORS_ALLOWED_ORIGINS` 환경변수를 읽습니다.
-
-## Backend 실행 방법
-
-Backend 명령은 `backend-rag`에서 실행합니다.
-
 ```powershell
-Set-Location backend-rag
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+cd backend-rag
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+Copy-Item .env.example .env
 python manage.py migrate
-python manage.py runserver
+python manage.py runserver 0.0.0.0:8000
 ```
 
-현재 Backend는 MySQL을 사용하도록 구성되어 있으므로 실행 전에 로컬 DB 설정이 필요합니다. OpenAI 기능을 사용할 때는 유효한 `OPENAI_API_KEY`가 필요합니다.
+실행 전 `.env`에 MySQL, OpenAI API Key와 Django 설정을 입력해야 합니다.
 
-## Flutter 실행 방법
-
-먼저 Flutter 프로젝트로 이동해 의존성을 준비합니다.
-
-이 프로젝트의 원래 기본 실행 환경은 Android입니다. Web의 Portfolio Preview와 Local Real RAG Demo는 포트폴리오 화면 확인을 위한 Debug 전용 모드입니다.
+### Flutter Android
 
 ```powershell
-Set-Location frontend-flutter
+cd frontend-flutter
 flutter pub get
 ```
 
-### Web
-
-```powershell
-flutter run -d chrome `
-  --dart-define=KAKAO_NATIVE_APP_KEY=<YOUR_KAKAO_NATIVE_APP_KEY> `
-  --dart-define=API_BASE_URL=http://127.0.0.1:8000
-```
-
-### Windows
-
-```powershell
-flutter run -d windows `
-  --dart-define=KAKAO_NATIVE_APP_KEY=<YOUR_KAKAO_NATIVE_APP_KEY> `
-  --dart-define=API_BASE_URL=http://127.0.0.1:8000
-```
-
-### Android Emulator
+Android Emulator:
 
 ```powershell
 flutter run `
-  --dart-define=KAKAO_NATIVE_APP_KEY=<YOUR_KAKAO_NATIVE_APP_KEY> `
-  --dart-define=API_BASE_URL=http://10.0.2.2:8000
+  --dart-define=API_BASE_URL=http://10.0.2.2:8000 `
+  --dart-define=KAKAO_NATIVE_APP_KEY=YOUR_KAKAO_NATIVE_APP_KEY
 ```
 
-### 실제 Android 기기
-
-실제 기기에서는 PC와 같은 네트워크에서 접근 가능한 주소를 명시적으로 전달해야 합니다. 앱에 개인 LAN IP 기본값은 포함되지 않습니다.
+실제 Android 기기에서는 `API_BASE_URL`을 Backend가 실행 중인 컴퓨터의 로컬 IP 주소로 변경합니다.
 
 ```powershell
 flutter run `
-  --dart-define=KAKAO_NATIVE_APP_KEY=<YOUR_KAKAO_NATIVE_APP_KEY> `
-  --dart-define=API_BASE_URL=http://<PC_LAN_IP>:8000
+  --dart-define=API_BASE_URL=http://YOUR_LOCAL_IP:8000 `
+  --dart-define=KAKAO_NATIVE_APP_KEY=YOUR_KAKAO_NATIVE_APP_KEY
 ```
 
-`API_BASE_URL`을 전달하지 않으면 Web과 desktop은 `127.0.0.1`, Android Emulator는 `10.0.2.2`를 사용합니다. 실제 Android 기기는 `API_BASE_URL`을 반드시 전달해야 합니다.
+Backend 컴퓨터와 Android 기기는 동일한 네트워크에 연결되어 있어야 합니다.
 
-## Kakao 설정
+---
 
-1. `frontend-flutter/android/local.properties.example`을 같은 폴더의 `local.properties`로 복사합니다.
-2. 로컬 환경에 맞는 `sdk.dir`, `flutter.sdk`와 `kakao.nativeAppKey`를 입력합니다.
-3. Flutter 실행 시 Android 설정과 동일한 Native App Key를 `KAKAO_NATIVE_APP_KEY`로 전달합니다.
+## 데이터 저장 구조
 
-일반 실행에서 `KAKAO_NATIVE_APP_KEY`를 전달하지 않으면 앱 초기화 단계에서 명확한 오류와 함께 실행이 중단됩니다. Android 빌드에는 별도로 `android/local.properties`의 `kakao.nativeAppKey`가 필요합니다.
+| 저장 위치 | 데이터 |
+| --- | --- |
+| MySQL | 사용자, 문서, Chunk, 질문 및 답변 |
+| `backend-rag/media` | 업로드 PDF 및 생성된 페이지 이미지 |
+| `backend-rag/faiss` | 문서별 FAISS Index와 Metadata |
+| Flutter Secure Storage | Access Token 및 Refresh Token |
 
-Android Emulator에서 PowerShell로 실행하는 예시는 다음과 같습니다.
+FAISS 파일은 문서별로 생성됩니다.
+
+```text
+faiss/doc_{documentId}.index
+faiss/doc_{documentId}.meta.npy
+```
+
+업로드 PDF, FAISS 파일, 데이터베이스와 사용자 인증 정보는 Git에 포함하지 않습니다.
+
+---
+
+## 구현 결과
+
+실제 PDF를 이용해 다음 흐름을 검증했습니다.
+
+```text
+PDF 업로드
+→ PDF 텍스트 추출
+→ Chunk 생성
+→ OpenAI Embedding
+→ FAISS Index 생성
+→ AI 요약
+→ 학습노트 생성
+→ 문서 기반 질의응답
+```
+
+검증 과정에서 PDF에서 추출한 Chunk 수와 FAISS에 저장된 Vector 수가 일치하는 것을 확인했으며, 생성된 FAISS Index를 이용한 문서 기반 질의응답이 정상적으로 수행되는 것을 확인했습니다.
+
+---
+
+## 테스트
 
 ```powershell
-flutter run `
-  --dart-define=KAKAO_NATIVE_APP_KEY=<YOUR_KAKAO_NATIVE_APP_KEY> `
-  --dart-define=API_BASE_URL=http://10.0.2.2:8000
+# Django 설정 검사
+cd backend-rag
+python manage.py check
+
+# Django 테스트
+python manage.py test
+
+# Flutter 정적 분석
+cd ../frontend-flutter
+flutter analyze
 ```
 
-- Android Emulator에서 PC의 Backend에 접속할 때는 `10.0.2.2`를 사용합니다.
-- Flutter Web과 Windows에서는 `127.0.0.1`을 사용할 수 있습니다.
-- 실제 Android 기기에서는 기기와 PC를 같은 네트워크에 연결하고 PC의 접근 가능한 로컬 IP를 사용합니다.
-- Kakao Developers에서 Android 패키지명과 키 해시를 등록해야 합니다.
-- `local.properties`와 실제 Kakao Native App Key는 Git에 포함하지 마세요.
-
-## Portfolio Preview Mode
-
-Flutter Web에서 실제 인증이나 Backend 데이터 없이 주요 포트폴리오 화면을 확인할 수 있는 Debug 전용 로컬 미리보기 모드입니다.
-
-```powershell
-flutter run -d chrome `
-  --web-port=5173 `
-  --dart-define=PORTFOLIO_PREVIEW=true `
-  --dart-define=KAKAO_NATIVE_APP_KEY=dummy-preview-key `
-  --dart-define=API_BASE_URL=http://127.0.0.1:8000
-```
-
-- `kDebugMode`, Flutter Web, `PORTFOLIO_PREVIEW=true` 조건을 모두 만족할 때만 활성화됩니다.
-- `true` 외에 `1`, `yes`도 활성화 값으로 사용할 수 있습니다.
-- Preview Mode에서는 Kakao SDK 초기화를 건너뛰므로 위의 dummy 값은 실제 인증에 사용되지 않습니다. 해당 인자는 생략해도 됩니다.
-- 실제 Backend, Kakao, OpenAI API를 호출하지 않으며 JWT나 Preview 상태를 저장하지 않습니다.
-- 업로드, 삭제, 이름 변경, 로그아웃과 같은 변경 기능은 안내 메시지만 표시합니다.
-- 실제 인증을 대체하는 기능이 아니며 포트폴리오 화면 확인 목적으로만 사용합니다.
-- Release 빌드에서는 Preview Mode와 진입 버튼이 비활성화됩니다.
-
-## Local Real RAG Demo
-
-Flutter Web에서 로컬 Django 일반 사용자와 실제 Simple JWT를 사용하기 위한 개발 전용 모드입니다. 이 모드는 Kakao 로그인을 대체하는 운영 기능이 아니며 Debug Web과 loopback 주소에서만 활성화됩니다.
-
-1. `backend-rag/.env`에 다음 로컬 설정을 추가합니다. 실제 비밀번호는 `.env`에 저장하지 않습니다.
-
-   ```env
-   DJANGO_DEBUG=true
-   LOCAL_DEMO_LOGIN=true
-   LOCAL_DEMO_USERNAME=portfolio_demo
-   DEMO_MEDIA_ROOT=demo-media
-   DEMO_FAISS_ROOT=demo-faiss
-   DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-   CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-   ```
-
-2. Backend 가상환경에서 일반 데모 사용자를 대화형으로 생성합니다. 명령이 비밀번호와 확인 값을 직접 요청하며 입력값은 화면에 표시되지 않습니다.
-
-   ```powershell
-   Set-Location backend-rag
-   .\venv\Scripts\python.exe manage.py create_local_demo_user
-   ```
-
-   이미 사용자가 존재하면 계정 권한을 확인한 후 다음 명령으로 비밀번호만 안전하게 변경할 수 있습니다.
-
-   ```powershell
-   .\venv\Scripts\python.exe manage.py changepassword portfolio_demo
-   ```
-
-3. 외부 네트워크에 노출되지 않도록 Django를 loopback 주소에만 바인딩합니다.
-
-   ```powershell
-   .\venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
-   ```
-
-4. 별도 터미널에서 Flutter Web을 실행합니다.
-
-   ```powershell
-   Set-Location frontend-flutter
-   flutter run -d chrome `
-     --web-port=5173 `
-     --dart-define=REAL_RAG_DEMO=true `
-     --dart-define=API_BASE_URL=http://127.0.0.1:8000
-   ```
-
-5. 로그인 화면의 `로컬 RAG 데모 로그인`에서 `portfolio_demo`와 직접 설정한 비밀번호를 입력합니다. 성공하면 실제 access/refresh JWT가 기존 세션 저장 흐름에 저장되고 인증된 문서 목록으로 이동합니다.
-
-- `PORTFOLIO_PREVIEW`와 `REAL_RAG_DEMO`는 동시에 활성화할 수 없습니다.
-- `LOCAL_DEMO_LOGIN`은 `DJANGO_DEBUG=true`일 때만 유효하며, 비활성 상태에서는 로그인 URL이 등록되지 않습니다.
-- `DEMO_MEDIA_ROOT`와 `DEMO_FAISS_ROOT`를 위처럼 설정하면 기존 `media/`와 `faiss/` 대신 격리된 데모 경로를 사용합니다.
-- 실제 API 호출에는 OpenAI 사용 비용과 로컬 데이터 생성이 수반됩니다.
-
-## Known Issues
-
-- Flutter Web의 PDF Viewer가 media URL을 직접 읽을 때 JWT Header를 함께 보내지 못해 환경에 따라 401 응답이 발생할 수 있습니다.
-- Kakao 로그인은 Android 흐름을 기준으로 구현되어 있으며 정식 Kakao Web 로그인은 구현되어 있지 않습니다.
-- `Document`에 사용자 소유권 필드가 없어 인증 사용자별 문서 격리가 적용되지 않습니다. Local Demo는 외부에 공개하지 마세요.
-- 인제스트는 Chunk DB 저장과 OpenAI Embedding, FAISS 저장을 하나의 트랜잭션으로 처리하지 않습니다. Embedding 실패 시 Chunk만 남을 수 있습니다.
-
-## 향후 개선사항
-
-- 인증이 필요한 Web PDF 제공 방식 또는 제한된 media URL 설계
-- Kakao Web 로그인과 플랫폼별 인증 흐름 정리
-- Document 사용자 소유권과 API QuerySet 격리
-- Chunk, Embedding, FAISS 저장의 트랜잭션·임시 파일 기반 원자성 개선
-- 자동화 테스트와 운영 환경용 보안·배포 설정 분리
-
-## 스크린샷
-
-스크린샷은 개인정보, 실제 PDF 내용 및 Secret 노출 여부를 검토한 후 추가할 예정입니다.
-
-## Git에 포함되지 않는 로컬 데이터
-
-다음 항목은 실행 또는 사용자 업로드로 생성되는 데이터이므로 Git에 포함하지 않습니다.
-
-- `backend-rag/.env`
-- `backend-rag/media/`
-- `backend-rag/faiss/`
-- `backend-rag/demo-media/`
-- `backend-rag/demo-faiss/`
-- `backend-rag/db.sqlite3`
-- Python 가상환경과 캐시
-- Flutter 및 Gradle 빌드 산출물
-
-이 파일들은 `.gitignore`로만 제외되며 자동으로 삭제되지 않습니다. 기존 포트폴리오 화면을 복구해야 한다면 별도로 안전하게 보관해야 합니다.
+---
 
 ## 주의사항
 
-- OpenAI API 요청에는 사용량에 따른 비용이 발생할 수 있습니다.
-- 업로드한 PDF와 생성 이미지에는 개인정보 또는 저작권이 있는 내용이 포함될 수 있습니다.
-- 이 저장소에는 실제 Secret을 포함하지 않아야 합니다.
+- 실제 `.env` 파일을 Git에 커밋하지 않습니다.
+- OpenAI API Key를 Flutter 코드에 포함하지 않습니다.
+- Kakao Key와 SDK 경로가 포함된 `local.properties`를 커밋하지 않습니다.
+- 사용자 업로드 PDF, Media와 FAISS 파일을 Git에 포함하지 않습니다.
+- OpenAI API 사용 전 Billing과 Credit 잔액을 확인해야 합니다.
+- 동일한 PDF를 반복적으로 업로드하거나 인제스트하면 API 사용량이 증가할 수 있습니다.
