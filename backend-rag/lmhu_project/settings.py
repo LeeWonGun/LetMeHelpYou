@@ -182,7 +182,9 @@ CORS_ALLOWED_ORIGINS = _env_list("CORS_ALLOWED_ORIGINS")
 USE_RAG: bool = os.getenv('USE_RAG', 'false').lower() == 'true'
 EMBED_MODEL: str = os.getenv('EMBED_MODEL', 'text-embedding-3-small')
 TOP_K: int = int(os.getenv('TOP_K', 5))
-CHUNK_SIZE: int = int(os.getenv('CHUNK_SIZE', 800))
+CHUNK_SIZE = 700
+CHUNK_OVERLAP = 100
+RAG_DISTANCE_THRESHOLD = 1.2
 OPENAI_MODEL: str = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
 
 
