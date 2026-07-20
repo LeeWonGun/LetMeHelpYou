@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 앱 표시 이름(원하면 수정) -->
+    <string name="app_name">lecture_ai_app</string>
+</resources>

@@ -1,0 +1,5 @@
+# Windows example. Paths vary by development environment.
+# Copy this file to local.properties, then update both SDK paths for your machine.
+sdk.dir=C:\\Users\\YOUR_NAME\\AppData\\Local\\Android\\Sdk
+flutter.sdk=C:\\path\\to\\flutter
+kakao.nativeAppKey=replace-with-your-kakao-native-app-key

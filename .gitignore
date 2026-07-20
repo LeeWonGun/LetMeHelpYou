@@ -1,0 +1,99 @@
+# Environment files and local secrets
+.env
+**/.env
+.env.*
+**/.env.*
+!.env.example
+!**/.env.example
+!.env.sample
+!**/.env.sample
+
+# Credentials and signing material
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+
+# IDE settings
+.idea/
+**/.idea/
+.vscode/
+**/.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Operating-system files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.swp
+*~
+*.bak
+
+# Local backups and assistant/tool metadata
+backup/
+backups/
+**/backup/
+**/backups/
+.agents/
+.codex/
+
+# Python / Django
+backend-rag/venv/
+backend-rag/.venv/
+backend-rag/env/
+backend-rag/ENV/
+backend-rag/__pycache__/
+backend-rag/**/__pycache__/
+backend-rag/**/*.py[cod]
+backend-rag/**/*.egg-info/
+backend-rag/.coverage
+backend-rag/htmlcov/
+backend-rag/.pytest_cache/
+backend-rag/.mypy_cache/
+backend-rag/.ruff_cache/
+backend-rag/.tox/
+backend-rag/db.sqlite3
+backend-rag/*.sqlite3
+backend-rag/*.sql
+backend-rag/*.dump
+backend-rag/media/
+backend-rag/staticfiles/
+backend-rag/faiss/
+backend-rag/demo-media/
+backend-rag/demo-faiss/
+
+# Flutter / Dart
+frontend-flutter/.dart_tool/
+frontend-flutter/.packages
+frontend-flutter/.pub-cache/
+frontend-flutter/.flutter-plugins
+frontend-flutter/.flutter-plugins-dependencies
+frontend-flutter/build/
+frontend-flutter/**/build/
+frontend-flutter/coverage/
+
+# Android local state and build outputs
+frontend-flutter/android/.gradle/
+frontend-flutter/android/captures/
+frontend-flutter/android/.cxx/
+frontend-flutter/android/**/local.properties
+frontend-flutter/android/**/key.properties
+
+# Flutter platform ephemeral outputs
+frontend-flutter/ios/Flutter/ephemeral/
+frontend-flutter/ios/Pods/
+frontend-flutter/ios/.symlinks/
+frontend-flutter/macos/Flutter/ephemeral/
+frontend-flutter/macos/Pods/
+frontend-flutter/linux/flutter/ephemeral/
+frontend-flutter/windows/flutter/ephemeral/
